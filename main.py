@@ -135,9 +135,15 @@ def prepare_text_for_lda_af(text_af_list):
 
     df = spark.createDataFrame(text_af_list, StringType()).toDF("text")
     result = nlp_pipeline.fit(df).transform(df)
-    result.select(F.explode(F.arrays_zip(result.lemma.result)).alias("cols")) \
-        .select(F.expr("cols['0']").alias("lemma")).show(truncate=False)
-    #print(result)
+    #result.select('lemma.result').show(truncate=False)
+    result_df = result.select(F.explode(F.arrays_zip(result.token.result,
+                                                     result.lemma.result)).alias("cols")) \
+        .select(F.expr("cols['0']").alias("token"),
+                F.expr("cols['1']").alias("lemma")).toPandas()
+    #result_pd = result.select(F.explode(F.arrays_zip(result.lemma.result)).alias("cols")) \
+    #    .select(F.expr("cols['0']").alias("lemma")).toPandas()
+
+    return result_df
 def get_lemma(word):
     lemma = wn.morphy(word)
     if lemma is None:
@@ -146,7 +152,9 @@ def get_lemma(word):
         return lemma
 if __name__ == '__main__':
     af_list = ["Ons het besliste teen-resessiebesteding deur die regering geïmplementeer , veral op infrastruktuur ."]
-    prepare_text_for_lda_af(af_list)
+    df = prepare_text_for_lda_af(af_list)
+    lemma_list = df['lemma']
+    print(lemma_list[0])
 
     # array of documents
     #all_documents = go_through_files_get_text("/home/nkosikhona/all_articels")
