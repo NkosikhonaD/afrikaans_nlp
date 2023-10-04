@@ -10,7 +10,6 @@ from sparknlp.annotator import *
 import pyspark.sql.functions as F
 from sparknlp.pretrained import PretrainedPipeline
 
-
 #-----------------------------------------------------
 from pyspark.ml import Pipeline
 import PyPDF2 as PyPDF2
@@ -21,6 +20,7 @@ from nltk.stem.porter import  *
 import numpy as np
 from gensim import corpora, models
 from gensim.utils import tokenize
+import pyLDAvis.gensim
 import nltk
 from nltk.corpus import wordnet as wn
 import fasttext as ft
@@ -43,7 +43,8 @@ def language_id(text,model = ft_model):
     text = text.replace("\n"," ")
     prediction = model.predict([text])
     # returns language label as __label__en, and accuracy eg 0.998
-    return prediction[0][0][0],[1][0][0]
+    print(prediction[0][0][0],prediction[1][0][0])
+    return prediction[0][0][0],prediction[1][0][0]
 
 def lemmatize_stemming(text):
     return stemmer.stem(WordNetLemmatizer().lemmatize(text,pos='v'))
@@ -54,6 +55,26 @@ def preprocess(text):
         if token not in gensim.parsing.preprocessing.STOPWORDS and len (token)> 3:
             result.append(lemmatize_stemming(token.strip()))
     return result
+
+'''Fuction creates two lists and put all the documents of each language in separate list'''
+def get_en_af_lists(docu_list,af_docu_list =[],en_doc_list= []):
+    print(" Start: language identification")
+    count_en = 0
+    count_af = 0
+    for document in docu_list:
+        lang,_ =language_id(document)
+        if( lang =='__label__en'):
+            en_doc_list.append(document)
+            count_en= count_en+1
+        else:
+            af_docu_list.append(document)
+            count_af=count_af+1
+    # returns  two lists containing documents, separeted into englis and afrikaans documents
+    print("Done langauge identification:","Total documents =",str((count_af+count_en)))
+    print("Found",str(count_en),"English documents","And",str(count_af),"Afrikaans documents")
+    return en_doc_list,af_docu_list
+
+
 
 def pdf_to_text_all_pages(file_path):
     current_text =""
@@ -111,10 +132,12 @@ def view_dictionary(dictionary):
         if count>10:
             break
 def prepare_text_for_lda_en(text):
+    print ("...Start preparing en text for lda removing stop words and lematizing")
     tokens = tokenize(text)
     tokens = [token for token in tokens if len(token.strip())>4]
     tokens = [token for token in tokens if token not in gensim.parsing.preprocessing.STOPWORDS]
     tokens = [get_lemma(token) for token in tokens]
+    print("...Done preparing en text for lda removing stop words and lematizing")
     return tokens
 
 def prepare_text_for_lda_af(text_af_list):
@@ -151,26 +174,39 @@ def get_lemma(word):
     else:
         return lemma
 if __name__ == '__main__':
-    af_list = ["Ons het besliste teen-resessiebesteding deur die regering geïmplementeer , veral op infrastruktuur ."]
-    df = prepare_text_for_lda_af(af_list)
-    lemma_list = df['lemma']
-    print(lemma_list[0])
+    #af_list = ["Ons het besliste teen-resessiebesteding deur die regering geïmplementeer , veral op infrastruktuur ."]
+    #df = prepare_text_for_lda_af(af_list)
+    #lemma_list = df['lemma']
+    #print(lemma_list[0])
 
     # array of documents
-    #all_documents = go_through_files_get_text("/home/nkosikhona/all_articels")
-    #clean_documents =[]
+    all_documents = go_through_files_get_text("/home/nkosikhona/all_articels")
+    clean_documents =[]
     # clean each document
-    #for document in all_documents:
-    #   clean_documents.append(clean_text(document))
-    #tokenized_documents= []
-    #for document in clean_documents:
-    #    tokens = prepare_text_for_lda_en(document)
-    #    tokenized_documents.append(tokens)
-    #dictionary = corpora.Dictionary(tokenized_documents)
-
-    #corpus = [dictionary.doc2bow(text) for text in tokenized_documents]
+    for document in all_documents:
+       clean_documents.append(clean_text(document))
 
 
+    clean_en_docu,clean_af_doc =get_en_af_lists(clean_documents)
+    tokenized_documents_en = []
+    tokenized_documents_af = []
+    for document in clean_en_docu:
+        tokens = prepare_text_for_lda_en(document)
+        tokenized_documents_en.append(tokens)
+    dictionary_en = corpora.Dictionary(tokenized_documents_en)
+    corpus_en = [dictionary_en.doc2bow(text) for text in tokenized_documents_en]
 
+    # build lda model
+    lda_model = gensim.models.ldamodel.LdaModel(corpus_en,num_topics=10,id2word=dictionary_en,passes=15)
+
+    # display topics
+
+
+    lda_display = pyLDAvis.gensim.prepare(lda_model,corpus_en,dictionary_en)
+
+
+    #pyLDAvis.enable_notebook()
+    pyLDAvis.save_html(lda_display,'LDA_visualization.html')
+    #pyLDAvis.show(lda_display)
 
 
