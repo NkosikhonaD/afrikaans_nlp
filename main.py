@@ -2,6 +2,8 @@
 import os
 import re
 
+from wordcloud import WordCloud
+import matplotlib.pyplot as plt
 # ------------- Spark imports--------------------------
 import sparknlp
 from pyspark.sql.types import StringType
@@ -133,7 +135,9 @@ def view_dictionary(dictionary):
             break
 def prepare_text_for_lda_en(text):
     print ("...Start preparing en text for lda removing stop words and lematizing")
-    tokens = tokenize(text)
+    domain_stop_words = ['witbank','phola','witbanknews','tasbet','reyno','nissan','ford','volkswagen','thungela','anglo','monday','tuesday','wednesday','friday','saturday','sunday','emalahleni']
+    #text = text.lower()
+    tokens = tokenize(text,to_lower=True)
     tokens = [token for token in tokens if len(token.strip())>4]
     tokens = [token for token in tokens if token not in gensim.parsing.preprocessing.STOPWORDS]
     tokens = [get_lemma(token) for token in tokens]
@@ -206,7 +210,18 @@ if __name__ == '__main__':
 
 
     #pyLDAvis.enable_notebook()
-    pyLDAvis.save_html(lda_display,'LDA_visualization.html')
+    pyLDAvis.save_html(lda_display,'LDA_en_visualization.html')
+
+    # plotting word cloud of the topics
+    for topic_id, topic in enumerate(lda_model.print_topics(num_topics=10,num_words=20)):
+        topics_words =" ".join([word.split("*")[1].strip() for word in topic[1].split(" + ")])
+        wordcloud = WordCloud().generate(topics_words)
+        plt.figure()
+        plt.imshow(wordcloud,interpolation='bilinear')
+        plt.axis('off')
+        plt.title("Topic: {}".format(topic_id))
+        plt.show()
+
     #pyLDAvis.show(lda_display)
 
 
